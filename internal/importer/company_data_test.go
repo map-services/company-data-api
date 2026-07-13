@@ -231,7 +231,7 @@ func createTestZip(t *testing.T, numRecords int) string {
 	headers[0] = "CompanyName"
 	assert.NoError(t, csvWriter.Write(headers))
 
-	for i := 0; i < numRecords; i++ {
+	for i := range numRecords {
 		record := make([]string, 55)
 		record[0] = fmt.Sprintf("company%d", i)
 		record[1] = fmt.Sprintf("123456%d", i)
@@ -358,7 +358,7 @@ func TestProcessCompanyDataCSVBatching(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectPrepare(internal.InsertCompanyDataSQL)
-	for i := 0; i < numRecords; i++ {
+	for i := range numRecords {
 		mock.ExpectExec(internal.InsertCompanyDataSQL).
 			WithArgs(
 				fmt.Sprintf("company%d", i), fmt.Sprintf("123456%d", i), "", "", "address1", "address2", "posttown", "county",

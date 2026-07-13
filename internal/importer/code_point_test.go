@@ -159,7 +159,7 @@ func TestImportCodePointMultipleRecords(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectPrepare(internal.InsertCodePointSQL)
-	for i := 0; i < numRecords; i++ {
+	for i := range numRecords {
 		mock.ExpectExec(internal.InsertCodePointSQL).
 			WithArgs(fmt.Sprintf("AB12 3CD%d", i), 300000+i, 700000+i).
 			WillReturnResult(sqlmock.NewResult(1, 1))
