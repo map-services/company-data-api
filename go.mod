@@ -11,7 +11,7 @@ require (
 	github.com/gin-contrib/pprof v1.5.6
 	github.com/gin-gonic/gin v1.12.0
 	github.com/mattn/go-sqlite3 v1.14.52
-	github.com/rm-hull/godx v0.2.5
+	github.com/rm-hull/godx v0.2.6
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
 	github.com/swaggo/files v1.0.1
