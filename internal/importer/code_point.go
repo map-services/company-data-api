@@ -49,7 +49,7 @@ type codePointImporter struct {
 
 func NewCodePointImporter(db *sql.DB) *codePointImporter {
 	return &codePointImporter{
-		batchSize: 5000,
+		batchSize: 20000,
 		db:        db,
 	}
 }
@@ -124,6 +124,8 @@ func (importer *codePointImporter) processCSV(f *zip.File) (int, error) {
 	return lineNum, nil
 }
 
+const insertCodePointSQL = `INSERT OR REPLACE INTO code_point (post_code, easting, northing) VALUES (?,?,?)`
+
 func (importer *codePointImporter) insertBatch(batch []CodePoint) error {
 	if len(batch) == 0 {
 		return nil
@@ -141,20 +143,16 @@ func (importer *codePointImporter) insertBatch(batch []CodePoint) error {
 		}
 	}()
 
-	stmt, err := tx.Prepare(internal.InsertCodePointSQL)
+	stmt, err := tx.Prepare(insertCodePointSQL)
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
-	defer func() {
-		if err := stmt.Close(); err != nil {
-			slog.Error("failed to close statement", "error", err)
-		}
-	}()
+	defer func() { _ = stmt.Close() }()
 
-	for _, codePoint := range batch {
-		_, err = stmt.Exec(codePointToTuple(codePoint)...)
+	for _, cp := range batch {
+		_, err = stmt.Exec(cp.PostCode, cp.Easting, cp.Northing)
 		if err != nil {
-			return fmt.Errorf("failed to execute individual insert: %w", err)
+			return fmt.Errorf("failed to execute row insert: %w", err)
 		}
 	}
 
