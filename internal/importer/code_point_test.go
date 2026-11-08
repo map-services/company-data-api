@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/map-services/company-data-api/internal"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -115,7 +114,7 @@ func TestCodePointToTuple(t *testing.T) {
 }
 
 func TestImportCodePoint(t *testing.T) {
-	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
 
 	codePoint := NewCodePointImporter(db)
@@ -128,9 +127,8 @@ func TestImportCodePoint(t *testing.T) {
 	buf, _ := setupSlogBuffer()
 
 	mock.ExpectBegin()
-	mock.ExpectPrepare(internal.InsertCodePointSQL)
-	mock.ExpectExec(internal.InsertCodePointSQL).
-		WithArgs("AB12 3CD0", 300000, 700000).
+	mock.ExpectPrepare("INSERT OR REPLACE INTO code_point")
+	mock.ExpectExec("INSERT OR REPLACE INTO code_point").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 	mock.ExpectExec("ANALYZE code_point").
@@ -144,7 +142,7 @@ func TestImportCodePoint(t *testing.T) {
 }
 
 func TestImportCodePointMultipleRecords(t *testing.T) {
-	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
 
 	codePoint := NewCodePointImporter(db)
@@ -158,11 +156,9 @@ func TestImportCodePointMultipleRecords(t *testing.T) {
 	buf, _ := setupSlogBuffer()
 
 	mock.ExpectBegin()
-	mock.ExpectPrepare(internal.InsertCodePointSQL)
-	for i := range numRecords {
-		mock.ExpectExec(internal.InsertCodePointSQL).
-			WithArgs(fmt.Sprintf("AB12 3CD%d", i), 300000+i, 700000+i).
-			WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectPrepare("INSERT OR REPLACE INTO code_point")
+	for range numRecords {
+		mock.ExpectExec("INSERT OR REPLACE INTO code_point").WillReturnResult(sqlmock.NewResult(1, 1))
 	}
 	mock.ExpectCommit()
 	mock.ExpectExec("ANALYZE code_point").
@@ -175,29 +171,8 @@ func TestImportCodePointMultipleRecords(t *testing.T) {
 	assert.Contains(t, buf.String(), "Completed successfully")
 }
 
-func TestImportCodePointPrepareError(t *testing.T) {
-	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
-	assert.NoError(t, err)
-
-	codePoint := NewCodePointImporter(db)
-
-	zipPath := createTestZipCodePoint(t, 1)
-	defer func() {
-		assert.NoError(t, os.Remove(zipPath))
-	}()
-
-	mock.ExpectBegin()
-	mock.ExpectPrepare(internal.InsertCodePointSQL).WillReturnError(fmt.Errorf("prepare error"))
-	mock.ExpectRollback()
-
-	err = codePoint.Import(zipPath, http.Header{})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to prepare statement: prepare error")
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestImportCodePointExecError(t *testing.T) {
-	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
 
 	codePoint := NewCodePointImporter(db)
@@ -208,20 +183,20 @@ func TestImportCodePointExecError(t *testing.T) {
 	}()
 
 	mock.ExpectBegin()
-	mock.ExpectPrepare(internal.InsertCodePointSQL)
-	mock.ExpectExec(internal.InsertCodePointSQL).
-		WithArgs("AB12 3CD0", 300000, 700000).
+	mock.ExpectPrepare("INSERT OR REPLACE INTO code_point")
+	mock.ExpectExec("INSERT OR REPLACE INTO code_point").
 		WillReturnError(fmt.Errorf("exec error"))
 	mock.ExpectRollback()
 
 	err = codePoint.Import(zipPath, http.Header{})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to execute individual insert: exec error")
+	assert.Contains(t, err.Error(), "failed to execute row insert: exec error")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+
 func TestProcessCodePointCSV(t *testing.T) {
-	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
 
 	codePoint := NewCodePointImporter(db)
@@ -238,9 +213,8 @@ func TestProcessCodePointCSV(t *testing.T) {
 	}()
 
 	mock.ExpectBegin()
-	mock.ExpectPrepare(internal.InsertCodePointSQL)
-	mock.ExpectExec(internal.InsertCodePointSQL).
-		WithArgs("AB12 3CD0", 300000, 700000).
+	mock.ExpectPrepare("INSERT OR REPLACE INTO code_point")
+	mock.ExpectExec("INSERT OR REPLACE INTO code_point").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 

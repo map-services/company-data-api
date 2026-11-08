@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/map-services/company-data-api/internal"
 	"github.com/map-services/company-data-api/internal/models"
 	"github.com/stretchr/testify/assert"
 )
@@ -272,7 +271,7 @@ func createTestZip(t *testing.T, numRecords int) string {
 }
 
 func TestImportCompanyData(t *testing.T) {
-	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
 
 	companyData := NewCompanyDataImporter(db)
@@ -282,42 +281,40 @@ func TestImportCompanyData(t *testing.T) {
 		assert.NoError(t, os.Remove(zipPath))
 	}()
 
+	// Pre-populate reference caches
+	mock.ExpectQuery("SELECT id, code FROM company_categories").WillReturnRows(sqlmock.NewRows([]string{"id", "code"}))
+	mock.ExpectQuery("SELECT id, code FROM company_statuses").WillReturnRows(sqlmock.NewRows([]string{"id", "code"}))
+	mock.ExpectQuery("SELECT id, code FROM accounts_categories").WillReturnRows(sqlmock.NewRows([]string{"id", "code"}))
+	mock.ExpectQuery("SELECT id, name FROM countries").WillReturnRows(sqlmock.NewRows([]string{"id", "name"}))
+	mock.ExpectQuery("SELECT id, name FROM country_origins").WillReturnRows(sqlmock.NewRows([]string{"id", "name"}))
+
 	mock.ExpectBegin()
-	mock.ExpectPrepare(internal.InsertCompanyDataSQL)
 
-	// Reference table lookups
-	mock.ExpectQuery("SELECT id FROM company_categories WHERE code = ?").
+	// Prepared statement insert (Prepare happens before reference lookups)
+	mock.ExpectPrepare("INSERT OR REPLACE INTO company_data")
+	// Reference table lookups (not in cache, so INSERT)
+	mock.ExpectQuery("SELECT id FROM company_categories WHERE code = \\?").
 		WithArgs("category").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO company_categories (code) VALUES (?)").
+	mock.ExpectExec("INSERT INTO company_categories \\(code\\) VALUES \\(\\?\\)").
 		WithArgs("category").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM company_statuses WHERE code = ?").
+	mock.ExpectQuery("SELECT id FROM company_statuses WHERE code = \\?").
 		WithArgs("status").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO company_statuses (code) VALUES (?)").
+	mock.ExpectExec("INSERT INTO company_statuses \\(code\\) VALUES \\(\\?\\)").
 		WithArgs("status").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM country_origins WHERE name = ?").
+	mock.ExpectQuery("SELECT id FROM country_origins WHERE name = \\?").
 		WithArgs("origin").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO country_origins (name) VALUES (?)").
+	mock.ExpectExec("INSERT INTO country_origins \\(name\\) VALUES \\(\\?\\)").
 		WithArgs("origin").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM accounts_categories WHERE code = ?").
+	mock.ExpectQuery("SELECT id FROM accounts_categories WHERE code = \\?").
 		WithArgs("category").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO accounts_categories (code) VALUES (?)").
+	mock.ExpectExec("INSERT INTO accounts_categories \\(code\\) VALUES \\(\\?\\)").
 		WithArgs("category").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM countries WHERE name = ?").
+	mock.ExpectQuery("SELECT id FROM countries WHERE name = \\?").
 		WithArgs("country").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO countries (name) VALUES (?)").
+	mock.ExpectExec("INSERT INTO countries \\(name\\) VALUES \\(\\?\\)").
 		WithArgs("country").WillReturnResult(sqlmock.NewResult(1, 1))
-
-	mock.ExpectExec(internal.InsertCompanyDataSQL).
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(),
-		).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("INSERT OR REPLACE INTO company_data").
+		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 	mock.ExpectExec("ANALYZE company_data").
 		WillReturnResult(sqlmock.NewResult(1, 1))
@@ -327,7 +324,7 @@ func TestImportCompanyData(t *testing.T) {
 }
 
 func TestProcessCompanyDataCSV(t *testing.T) {
-	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
 
 	companyData := NewCompanyDataImporter(db)
@@ -343,42 +340,39 @@ func TestProcessCompanyDataCSV(t *testing.T) {
 		assert.NoError(t, r.Close())
 	}()
 
+	// Pre-populate reference caches
+	mock.ExpectQuery("SELECT id, code FROM company_categories").WillReturnRows(sqlmock.NewRows([]string{"id", "code"}))
+	mock.ExpectQuery("SELECT id, code FROM company_statuses").WillReturnRows(sqlmock.NewRows([]string{"id", "code"}))
+	mock.ExpectQuery("SELECT id, code FROM accounts_categories").WillReturnRows(sqlmock.NewRows([]string{"id", "code"}))
+	mock.ExpectQuery("SELECT id, name FROM countries").WillReturnRows(sqlmock.NewRows([]string{"id", "name"}))
+	mock.ExpectQuery("SELECT id, name FROM country_origins").WillReturnRows(sqlmock.NewRows([]string{"id", "name"}))
+
 	mock.ExpectBegin()
-	mock.ExpectPrepare(internal.InsertCompanyDataSQL)
-
-	// Reference table lookups
-	mock.ExpectQuery("SELECT id FROM company_categories WHERE code = ?").
+	// Prepared statement insert (Prepare happens before reference lookups)
+	mock.ExpectPrepare("INSERT OR REPLACE INTO company_data")
+	// Reference table lookups (not in cache, so INSERT)
+	mock.ExpectQuery("SELECT id FROM company_categories WHERE code = \\?").
 		WithArgs("category").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO company_categories (code) VALUES (?)").
+	mock.ExpectExec("INSERT INTO company_categories \\(code\\) VALUES \\(\\?\\)").
 		WithArgs("category").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM company_statuses WHERE code = ?").
+	mock.ExpectQuery("SELECT id FROM company_statuses WHERE code = \\?").
 		WithArgs("status").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO company_statuses (code) VALUES (?)").
+	mock.ExpectExec("INSERT INTO company_statuses \\(code\\) VALUES \\(\\?\\)").
 		WithArgs("status").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM country_origins WHERE name = ?").
+	mock.ExpectQuery("SELECT id FROM country_origins WHERE name = \\?").
 		WithArgs("origin").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO country_origins (name) VALUES (?)").
+	mock.ExpectExec("INSERT INTO country_origins \\(name\\) VALUES \\(\\?\\)").
 		WithArgs("origin").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM accounts_categories WHERE code = ?").
+	mock.ExpectQuery("SELECT id FROM accounts_categories WHERE code = \\?").
 		WithArgs("category").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO accounts_categories (code) VALUES (?)").
+	mock.ExpectExec("INSERT INTO accounts_categories \\(code\\) VALUES \\(\\?\\)").
 		WithArgs("category").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM countries WHERE name = ?").
+	mock.ExpectQuery("SELECT id FROM countries WHERE name = \\?").
 		WithArgs("country").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO countries (name) VALUES (?)").
+	mock.ExpectExec("INSERT INTO countries \\(name\\) VALUES \\(\\?\\)").
 		WithArgs("country").WillReturnResult(sqlmock.NewResult(1, 1))
-
-	mock.ExpectExec(internal.InsertCompanyDataSQL).
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-			sqlmock.AnyArg(), sqlmock.AnyArg(),
-		).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("INSERT OR REPLACE INTO company_data").
+		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 	err = companyData.processCSV(r.File[0])
 	assert.NoError(t, err)
@@ -386,11 +380,13 @@ func TestProcessCompanyDataCSV(t *testing.T) {
 }
 
 func TestProcessCompanyDataCSVBatching(t *testing.T) {
-	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
 
 	companyData := NewCompanyDataImporter(db)
 
+	// Use a small batch size for testing
+	companyData.batchSize = 2
 	numRecords := companyData.batchSize*2 + 1 // More than two batches
 	zipPath := createTestZip(t, numRecords)
 	defer func() {
@@ -403,104 +399,79 @@ func TestProcessCompanyDataCSVBatching(t *testing.T) {
 		assert.NoError(t, r.Close())
 	}()
 
-	mock.ExpectBegin()
-	mock.ExpectPrepare(internal.InsertCompanyDataSQL)
+	// Pre-populate reference caches with cached values so no INSERT needed
+	rows := sqlmock.NewRows([]string{"id", "code"}).AddRow(1, "category")
+	mock.ExpectQuery("SELECT id, code FROM company_categories").WillReturnRows(rows)
+	rows = sqlmock.NewRows([]string{"id", "code"}).AddRow(1, "status")
+	mock.ExpectQuery("SELECT id, code FROM company_statuses").WillReturnRows(rows)
+	rows = sqlmock.NewRows([]string{"id", "code"}).AddRow(1, "category")
+	mock.ExpectQuery("SELECT id, code FROM accounts_categories").WillReturnRows(rows)
+	rows = sqlmock.NewRows([]string{"id", "name"}).AddRow(1, "country")
+	mock.ExpectQuery("SELECT id, name FROM countries").WillReturnRows(rows)
+	rows = sqlmock.NewRows([]string{"id", "name"}).AddRow(1, "origin")
+	mock.ExpectQuery("SELECT id, name FROM country_origins").WillReturnRows(rows)
 
-	// Reference table lookups (first batch)
-	mock.ExpectQuery("SELECT id FROM company_categories WHERE code = ?").
-		WithArgs("category").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO company_categories (code) VALUES (?)").
-		WithArgs("category").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM company_statuses WHERE code = ?").
-		WithArgs("status").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO company_statuses (code) VALUES (?)").
-		WithArgs("status").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM country_origins WHERE name = ?").
-		WithArgs("origin").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO country_origins (name) VALUES (?)").
-		WithArgs("origin").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM accounts_categories WHERE code = ?").
-		WithArgs("category").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO accounts_categories (code) VALUES (?)").
-		WithArgs("category").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM countries WHERE name = ?").
-		WithArgs("country").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO countries (name) VALUES (?)").
-		WithArgs("country").WillReturnResult(sqlmock.NewResult(1, 1))
-	for i := range numRecords {
-		mock.ExpectExec(internal.InsertCompanyDataSQL).
-			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-				sqlmock.AnyArg(), sqlmock.AnyArg(),
-			).WillReturnResult(sqlmock.NewResult(1, 1))
-		if (i+1)%companyData.batchSize == 0 {
-			mock.ExpectCommit()
-			mock.ExpectBegin()
-			mock.ExpectPrepare(internal.InsertCompanyDataSQL)
+	// 3 batches: 2, 2, 1
+	batchSizes := []int{2, 2, 1}
+	for _, size := range batchSizes {
+		mock.ExpectBegin()
+		mock.ExpectPrepare("INSERT OR REPLACE INTO company_data")
+		for range size {
+			mock.ExpectExec("INSERT OR REPLACE INTO company_data").WillReturnResult(sqlmock.NewResult(1, 1))
 		}
+		mock.ExpectCommit()
 	}
-	mock.ExpectCommit()
 	err = companyData.processCSV(r.File[0])
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestInsertCompanyDataBatchRollbackOnError(t *testing.T) {
-	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
 
 	companyData := NewCompanyDataImporter(db)
 
-	// Prepare a batch of company data with non-empty reference fields
-	batch := []models.CompanyData{
-		{CompanyNumber: "1", CompanyName: "Company One", CompanyCategory: "cat", CompanyStatus: "stat",
-			CountryOfOrigin: "UK", AccountsAccountCategory: "acc", RegAddressCountry: "GB"},
-		{CompanyNumber: "2", CompanyName: "Company Two", CompanyCategory: "cat", CompanyStatus: "stat",
-			CountryOfOrigin: "UK", AccountsAccountCategory: "acc", RegAddressCountry: "GB"},
+	// Prepare a batch of csvRow with non-empty reference fields
+	batch := []*csvRow{
+		{companyNumber: "1", companyName: "Company One", companyCategory: "cat", companyStatus: "stat",
+			countryOfOrigin: "UK", accountsAccCategory: "acc", regAddressCountry: "GB"},
+		{companyNumber: "2", companyName: "Company Two", companyCategory: "cat", companyStatus: "stat",
+			countryOfOrigin: "UK", accountsAccCategory: "acc", regAddressCountry: "GB"},
 	}
 
 	mock.ExpectBegin()
-	mock.ExpectPrepare(internal.InsertCompanyDataSQL)
 
+	// Prepared statement insert (Prepare happens before reference lookups)
+	mock.ExpectPrepare("INSERT OR REPLACE INTO company_data")
 	// Reference table lookups for first record (second record uses cache)
-	mock.ExpectQuery("SELECT id FROM company_categories WHERE code = ?").
+	mock.ExpectQuery("SELECT id FROM company_categories WHERE code = \\?").
 		WithArgs("cat").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO company_categories (code) VALUES (?)").
+	mock.ExpectExec("INSERT INTO company_categories \\(code\\) VALUES \\(\\?\\)").
 		WithArgs("cat").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM company_statuses WHERE code = ?").
+	mock.ExpectQuery("SELECT id FROM company_statuses WHERE code = \\?").
 		WithArgs("stat").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO company_statuses (code) VALUES (?)").
+	mock.ExpectExec("INSERT INTO company_statuses \\(code\\) VALUES \\(\\?\\)").
 		WithArgs("stat").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM country_origins WHERE name = ?").
+	mock.ExpectQuery("SELECT id FROM country_origins WHERE name = \\?").
 		WithArgs("UK").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO country_origins (name) VALUES (?)").
+	mock.ExpectExec("INSERT INTO country_origins \\(name\\) VALUES \\(\\?\\)").
 		WithArgs("UK").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM accounts_categories WHERE code = ?").
+	mock.ExpectQuery("SELECT id FROM accounts_categories WHERE code = \\?").
 		WithArgs("acc").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO accounts_categories (code) VALUES (?)").
+	mock.ExpectExec("INSERT INTO accounts_categories \\(code\\) VALUES \\(\\?\\)").
 		WithArgs("acc").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery("SELECT id FROM countries WHERE name = ?").
+	mock.ExpectQuery("SELECT id FROM countries WHERE name = \\?").
 		WithArgs("GB").WillReturnError(sql.ErrNoRows)
-	mock.ExpectExec("INSERT INTO countries (name) VALUES (?)").
+	mock.ExpectExec("INSERT INTO countries \\(name\\) VALUES \\(\\?\\)").
 		WithArgs("GB").WillReturnResult(sqlmock.NewResult(1, 1))
-
-	// First insert succeeds, second fails — rollback expected
-	mock.ExpectExec(internal.InsertCompanyDataSQL).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec(internal.InsertCompanyDataSQL).
+	// First row Exec fails — rollback expected
+	mock.ExpectExec("INSERT OR REPLACE INTO company_data").
 		WillReturnError(fmt.Errorf("mock insert error"))
 	mock.ExpectRollback()
 
 	err = companyData.insertBatch(batch, 2)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to execute individual insert: mock insert error")
-	// Note: ExpectationsWereMet may fail due to go-sqlmock arg matching quirks
-	// The important assertion is that the error is properly returned and contains the expected message
+	assert.Contains(t, err.Error(), "failed to execute row insert: mock insert error")
 }

@@ -43,12 +43,12 @@ CREATE TABLE IF NOT EXISTS company_data (
 
     reg_address_care_of TEXT,
     reg_address_po_box TEXT,
-    reg_address_address_line_1 TEXT NOT NULL,
+    reg_address_address_line_1 TEXT,
     reg_address_address_line_2 TEXT,
-    reg_address_post_town TEXT NOT NULL,
+    reg_address_post_town TEXT,
     reg_address_county TEXT,
     reg_address_country INTEGER,
-    reg_address_post_code TEXT NOT NULL,
+    reg_address_post_code TEXT,
 
     company_category INTEGER NOT NULL,
     company_status INTEGER NOT NULL,
