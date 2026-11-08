@@ -2,6 +2,7 @@ package importer
 
 import (
 	"archive/zip"
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -272,39 +273,84 @@ func (importer *companyDataImporter) processCSV(f *zip.File) error {
 		}
 	}()
 
-	batch := make([]models.CompanyData, 0, importer.batchSize)
-	lineNum := 0
-
-	for result := range internal.ParseCSV(r, true, fromCompanyDataCSV) {
-		lineNum = result.LineNum
-		if result.Error != nil {
-			return fmt.Errorf("error parsing line %d: %w", lineNum, result.Error)
-		}
-
-		batch = append(batch, *result.Value)
-
-		if importer.maxRecords > 0 && importer.recordsImported+len(batch) >= importer.maxRecords {
-			if err := importer.insertBatch(batch, lineNum); err != nil {
-				return fmt.Errorf("failed to insert final company data batch at line %d: %w", lineNum, err)
-			}
-			importer.recordsImported += len(batch)
+	remainingRecords := 0
+	if importer.maxRecords > 0 {
+		remainingRecords = importer.maxRecords - importer.recordsImported
+		if remainingRecords <= 0 {
 			return nil
-		}
-
-		if len(batch) >= importer.batchSize {
-			if err := importer.insertBatch(batch, lineNum); err != nil {
-				return fmt.Errorf("failed to insert company data batch at line %d: %w", lineNum, err)
-			}
-			importer.recordsImported += len(batch)
-			batch = batch[:0]
 		}
 	}
 
-	if len(batch) > 0 {
-		if err := importer.insertBatch(batch, lineNum); err != nil {
-			return fmt.Errorf("failed to insert final company data batch at line %d: %w", lineNum, err)
+	type companyDataBatch struct {
+		records     []models.CompanyData
+		lastLineNum int
+		err         error
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	batches := make(chan companyDataBatch, 3)
+	producerDone := make(chan struct{})
+	go func() {
+		defer close(producerDone)
+		defer close(batches)
+
+		batch := make([]models.CompanyData, 0, importer.batchSize)
+		parsedRecords := 0
+		lineNum := 0
+		sendBatch := func(records []models.CompanyData, lastLineNum int) bool {
+			select {
+			case batches <- companyDataBatch{records: records, lastLineNum: lastLineNum}:
+				return true
+			case <-ctx.Done():
+				return false
+			}
 		}
-		importer.recordsImported += len(batch)
+
+		for result := range internal.ParseCSV(r, true, fromCompanyDataCSV) {
+			if ctx.Err() != nil {
+				return
+			}
+			lineNum = result.LineNum
+			if result.Error != nil {
+				select {
+				case batches <- companyDataBatch{lastLineNum: lineNum, err: result.Error}:
+				case <-ctx.Done():
+				}
+				return
+			}
+
+			batch = append(batch, *result.Value)
+			parsedRecords++
+			limitReached := remainingRecords > 0 && parsedRecords >= remainingRecords
+			if len(batch) >= importer.batchSize || limitReached {
+				if !sendBatch(batch, lineNum) {
+					return
+				}
+				if limitReached {
+					return
+				}
+				batch = make([]models.CompanyData, 0, importer.batchSize)
+			}
+		}
+
+		if len(batch) > 0 {
+			sendBatch(batch, lineNum)
+		}
+	}()
+	defer func() {
+		cancel()
+		<-producerDone
+	}()
+
+	for batch := range batches {
+		if batch.err != nil {
+			return fmt.Errorf("error parsing line %d: %w", batch.lastLineNum, batch.err)
+		}
+		if err := importer.insertBatch(batch.records, batch.lastLineNum); err != nil {
+			cancel()
+			return fmt.Errorf("failed to insert company data batch at line %d: %w", batch.lastLineNum, err)
+		}
+		importer.recordsImported += len(batch.records)
 	}
 
 	return nil
