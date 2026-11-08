@@ -39,8 +39,10 @@ func parseNullableInt(s string) *int {
 }
 
 type companyDataImporter struct {
-	batchSize int
-	db        *sql.DB
+	batchSize       int
+	maxRecords      int
+	recordsImported int
+	db              *sql.DB
 
 	// Reference data caches: value -> ID
 	companyCategories  map[string]int
@@ -50,9 +52,10 @@ type companyDataImporter struct {
 	countryOrigins     map[string]int
 }
 
-func NewCompanyDataImporter(db *sql.DB) *companyDataImporter {
+func NewCompanyDataImporter(db *sql.DB, maxRecords int) *companyDataImporter {
 	return &companyDataImporter{
 		batchSize:          5000,
+		maxRecords:         maxRecords,
 		db:                 db,
 		companyCategories:  make(map[string]int),
 		companyStatuses:    make(map[string]int),
@@ -204,6 +207,10 @@ func companyDataToTuple(companyData models.CompanyData) []any {
 }
 
 func (importer *companyDataImporter) Import(zipPath string, _ http.Header) error {
+	if importer.maxRecords < 0 {
+		return fmt.Errorf("max records cannot be negative")
+	}
+
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return fmt.Errorf("failed to open zip file: %w", err)
@@ -215,6 +222,9 @@ func (importer *companyDataImporter) Import(zipPath string, _ http.Header) error
 	}()
 
 	for _, f := range r.File {
+		if importer.maxRecords > 0 && importer.recordsImported >= importer.maxRecords {
+			break
+		}
 		if err := importer.processCSV(f); err != nil {
 			return fmt.Errorf("failed to process CSV data: %w", err)
 		}
@@ -250,10 +260,19 @@ func (importer *companyDataImporter) processCSV(f *zip.File) error {
 
 		batch = append(batch, *result.Value)
 
+		if importer.maxRecords > 0 && importer.recordsImported+len(batch) >= importer.maxRecords {
+			if err := importer.insertBatch(batch, lineNum); err != nil {
+				return fmt.Errorf("failed to insert final company data batch at line %d: %w", lineNum, err)
+			}
+			importer.recordsImported += len(batch)
+			return nil
+		}
+
 		if len(batch) >= importer.batchSize {
 			if err := importer.insertBatch(batch, lineNum); err != nil {
 				return fmt.Errorf("failed to insert company data batch at line %d: %w", lineNum, err)
 			}
+			importer.recordsImported += len(batch)
 			batch = batch[:0]
 		}
 	}
@@ -262,6 +281,7 @@ func (importer *companyDataImporter) processCSV(f *zip.File) error {
 		if err := importer.insertBatch(batch, lineNum); err != nil {
 			return fmt.Errorf("failed to insert final company data batch at line %d: %w", lineNum, err)
 		}
+		importer.recordsImported += len(batch)
 	}
 
 	return nil

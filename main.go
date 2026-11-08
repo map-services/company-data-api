@@ -12,6 +12,7 @@ func main() {
 	var port int
 	var debug bool
 	var companiesHouseZipFile string
+	var maxRecords int
 	var codepointZipFile string
 	var sicCodesCSVFile string
 
@@ -31,13 +32,14 @@ func main() {
 	apiServerCmd.Flags().BoolVar(&debug, "debug", false, "Enable debugging (pprof) - WARING: do not enable in production")
 
 	processCompaniesHouseZipCmd := &cobra.Command{
-		Use:   "import-companies-house [--zip-file <path>] [--db <path>]",
+		Use:   "import-companies-house [--zip-file <path>] [--db <path>] [--max-records <n>]",
 		Short: "Import Companies House ZIP file",
 		Run: func(_ *cobra.Command, _ []string) {
-			cmd.ImportCompaniesHouseZipFile(companiesHouseZipFile, dbPath)
+			cmd.ImportCompaniesHouseZipFile(companiesHouseZipFile, dbPath, maxRecords)
 		},
 	}
 	processCompaniesHouseZipCmd.Flags().StringVar(&companiesHouseZipFile, "zip-file", "./data/BasicCompanyDataAsOneFile-2025-09-01.zip", "Path to Companies House .zip file")
+	processCompaniesHouseZipCmd.Flags().IntVar(&maxRecords, "max-records", 0, "Maximum company records to import (0 means no limit)")
 
 	processCodepointZipCmd := &cobra.Command{
 		Use:   "import-code-point [--zip-file <path>] [--db <path>]",

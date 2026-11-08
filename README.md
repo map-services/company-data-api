@@ -129,6 +129,7 @@ The application uses [cobra](https://github.com/spf13/cobra) for its command-lin
 -   `import-companies-house` — Imports Companies House ZIP file into the database.
     -   Options:
         -   `--zip-file <path>`: Path to Companies House .zip file (default: `./data/BasicCompanyDataAsOneFile-2025-09-01.zip`)
+        -   `--max-records <n>`: Maximum number of company records to import (default: `0`, no limit)
 
 -   `import-code-point` — Imports Codepoint ZIP file into the database.
     -   Options:
@@ -143,6 +144,7 @@ Example usage:
 ```sh
 ./company-data import-sic-codes
 ./company-data import-companies-house --zip-file https://download.companieshouse.gov.uk/BasicCompanyDataAsOneFile-2025-09-01.zip
+./company-data import-companies-house --zip-file ./data/company_data.zip --max-records 1000
 ./company-data import-code-point --zip-file https://api.os.uk/downloads/v1/products/CodePointOpen/downloads?area=GB&format=CSV&redirect
 ./company-data api-server --db ./data/companies_data.db --port 8080
 ```

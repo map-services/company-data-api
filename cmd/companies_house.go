@@ -9,7 +9,7 @@ import (
 	"github.com/rm-hull/godx"
 )
 
-func ImportCompaniesHouseZipFile(zipFile string, dbPath string) {
+func ImportCompaniesHouseZipFile(zipFile string, dbPath string, maxRecords int) {
 	logger := internal.SetupLogger()
 	godx.Diagnostics(logger)
 
@@ -24,7 +24,7 @@ func ImportCompaniesHouseZipFile(zipFile string, dbPath string) {
 		}
 	}()
 
-	err = internal.TransientDownload(zipFile, importer.NewCompanyDataImporter(db).Import)
+	err = internal.TransientDownload(zipFile, importer.NewCompanyDataImporter(db, maxRecords).Import)
 	if err != nil {
 		slog.Error("failed to import company data", "error", err)
 		os.Exit(1)

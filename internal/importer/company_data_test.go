@@ -271,11 +271,25 @@ func createTestZip(t *testing.T, numRecords int) string {
 	return tempFile.Name()
 }
 
+func expectCompanyDataInsert(mock sqlmock.Sqlmock) {
+	mock.ExpectExec(internal.InsertCompanyDataSQL).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+			sqlmock.AnyArg(), sqlmock.AnyArg(),
+		).WillReturnResult(sqlmock.NewResult(1, 1))
+}
+
 func TestImportCompanyData(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	assert.NoError(t, err)
 
-	companyData := NewCompanyDataImporter(db)
+	companyData := NewCompanyDataImporter(db, 0)
 
 	zipPath := createTestZip(t, 1) // Create a zip with 1 record
 	defer func() {
@@ -326,11 +340,54 @@ func TestImportCompanyData(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestImportCompanyDataMaxRecords(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	assert.NoError(t, err)
+
+	companyData := NewCompanyDataImporter(db, 2)
+	zipPath := createTestZip(t, 3)
+	defer func() {
+		assert.NoError(t, os.Remove(zipPath))
+	}()
+
+	mock.ExpectBegin()
+	mock.ExpectPrepare(internal.InsertCompanyDataSQL)
+	mock.ExpectQuery("SELECT id FROM company_categories WHERE code = ?").
+		WithArgs("category").WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec("INSERT INTO company_categories (code) VALUES (?)").
+		WithArgs("category").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("SELECT id FROM company_statuses WHERE code = ?").
+		WithArgs("status").WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec("INSERT INTO company_statuses (code) VALUES (?)").
+		WithArgs("status").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("SELECT id FROM country_origins WHERE name = ?").
+		WithArgs("origin").WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec("INSERT INTO country_origins (name) VALUES (?)").
+		WithArgs("origin").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("SELECT id FROM accounts_categories WHERE code = ?").
+		WithArgs("category").WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec("INSERT INTO accounts_categories (code) VALUES (?)").
+		WithArgs("category").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("SELECT id FROM countries WHERE name = ?").
+		WithArgs("country").WillReturnError(sql.ErrNoRows)
+	mock.ExpectExec("INSERT INTO countries (name) VALUES (?)").
+		WithArgs("country").WillReturnResult(sqlmock.NewResult(1, 1))
+	expectCompanyDataInsert(mock)
+	expectCompanyDataInsert(mock)
+	mock.ExpectCommit()
+	mock.ExpectExec("ANALYZE company_data").WillReturnResult(sqlmock.NewResult(1, 1))
+
+	err = companyData.Import(zipPath, http.Header{})
+	assert.NoError(t, err)
+	assert.Equal(t, 2, companyData.recordsImported)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestProcessCompanyDataCSV(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	assert.NoError(t, err)
 
-	companyData := NewCompanyDataImporter(db)
+	companyData := NewCompanyDataImporter(db, 0)
 
 	zipPath := createTestZip(t, 1) // Create a zip with 1 record
 	defer func() {
@@ -389,7 +446,7 @@ func TestProcessCompanyDataCSVBatching(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	assert.NoError(t, err)
 
-	companyData := NewCompanyDataImporter(db)
+	companyData := NewCompanyDataImporter(db, 0)
 
 	numRecords := companyData.batchSize*2 + 1 // More than two batches
 	zipPath := createTestZip(t, numRecords)
@@ -455,7 +512,7 @@ func TestInsertCompanyDataBatchRollbackOnError(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	assert.NoError(t, err)
 
-	companyData := NewCompanyDataImporter(db)
+	companyData := NewCompanyDataImporter(db, 0)
 
 	// Prepare a batch of company data with non-empty reference fields
 	batch := []models.CompanyData{
