@@ -161,7 +161,7 @@ func BenchmarkCompanyDataImport(b *testing.B) {
 	b.ResetTimer()
 	for iteration := 0; iteration < b.N; iteration++ {
 		dbPath := filepath.Join(b.TempDir(), fmt.Sprintf("run-%d.db", iteration))
-		db, err := internal.Connect(dbPath)
+		db, err := internal.ConnectForImport(dbPath)
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -13,7 +13,7 @@ func ImportCompaniesHouseZipFile(zipFile string, dbPath string, maxRecords int) 
 	logger := internal.SetupLogger()
 	godx.Diagnostics(logger)
 
-	db, err := internal.Connect(dbPath)
+	db, err := internal.ConnectForImport(dbPath)
 	if err != nil {
 		slog.Error("failed to initialize database", "error", err)
 		os.Exit(1)
