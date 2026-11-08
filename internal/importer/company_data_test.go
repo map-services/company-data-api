@@ -605,3 +605,50 @@ func TestInsertCompanyDataDuplicateUsesLastRow(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "Last name", companyName)
 }
+
+func TestInsertCompanyDataEmptyReferencesBecomeNull(t *testing.T) {
+	db, err := internal.ConnectForImport(filepath.Join(t.TempDir(), "empty-refs.db"))
+	assert.NoError(t, err)
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("failed to close test database: %v", err)
+		}
+	})
+
+	incorporationDate := time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
+	company := models.CompanyData{
+		CompanyName:             "Missing optional references",
+		CompanyNumber:           "00000002",
+		RegAddressAddressLine1:  "1 High Street",
+		RegAddressPostTown:      "London",
+		RegAddressPostCode:      "AB1 2CD",
+		CompanyCategory:         "private limited company",
+		CompanyStatus:           "active",
+		IncorporationDate:       &incorporationDate,
+		AccountsAccountRefDay:   1,
+		AccountsAccountRefMonth: 1,
+		SICCode1:                "01110",
+	}
+	importer := NewCompanyDataImporter(db, 0)
+	assert.NoError(t, importer.insertBatch([]models.CompanyData{company}, 1))
+
+	var regAddressCountry, countryOfOrigin, accountsCategory sql.NullInt64
+	err = db.QueryRow(`SELECT reg_address_country, country_of_origin, accounts_account_category
+		FROM company_data WHERE company_number = ?`, company.CompanyNumber).
+		Scan(&regAddressCountry, &countryOfOrigin, &accountsCategory)
+	assert.NoError(t, err)
+	assert.False(t, regAddressCountry.Valid)
+	assert.False(t, countryOfOrigin.Valid)
+	assert.False(t, accountsCategory.Valid)
+
+	company.CompanyNumber = "00000003"
+	company.CompanyCategory = ""
+	err = importer.insertBatch([]models.CompanyData{company}, 2)
+	assert.ErrorContains(t, err, "NOT NULL constraint failed: company_data.company_category")
+
+	company.CompanyNumber = "00000004"
+	company.CompanyCategory = "private limited company"
+	company.CompanyStatus = ""
+	err = importer.insertBatch([]models.CompanyData{company}, 3)
+	assert.ErrorContains(t, err, "NOT NULL constraint failed: company_data.company_status")
+}

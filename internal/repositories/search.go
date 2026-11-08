@@ -216,7 +216,7 @@ func (repo *SqliteDbRepository) Find(bbox []float64, rowProcessor func(companyDa
 		var companyName, companyNumber, regAddressCareOf, regAddressPOBox string
 		var regAddressAddressLine1, regAddressAddressLine2, regAddressPostTown string
 		var regAddressCounty, regAddressPostCode string
-		var regAddressCountryID, companyCategoryID, companyStatusID int
+		var regAddressCountryID, companyCategoryID, companyStatusID sql.NullInt64
 		var countryOriginID sql.NullInt64
 		var dissolutionDate, incorporationDate sql.NullTime
 		var accountsAccountRefDay, accountsAccountRefMonth int
@@ -259,10 +259,16 @@ func (repo *SqliteDbRepository) Find(bbox []float64, rowProcessor func(companyDa
 		cd.RegAddressAddressLine2 = regAddressAddressLine2
 		cd.RegAddressPostTown = regAddressPostTown
 		cd.RegAddressCounty = regAddressCounty
-		cd.RegAddressCountry = repo.countries[regAddressCountryID]
+		if regAddressCountryID.Valid {
+			cd.RegAddressCountry = repo.countries[int(regAddressCountryID.Int64)]
+		}
 		cd.RegAddressPostCode = regAddressPostCode
-		cd.CompanyCategory = repo.companyCategories[companyCategoryID]
-		cd.CompanyStatus = repo.companyStatuses[companyStatusID]
+		if companyCategoryID.Valid {
+			cd.CompanyCategory = repo.companyCategories[int(companyCategoryID.Int64)]
+		}
+		if companyStatusID.Valid {
+			cd.CompanyStatus = repo.companyStatuses[int(companyStatusID.Int64)]
+		}
 		if countryOriginID.Valid {
 			cd.CountryOfOrigin = repo.countryOrigins[int(countryOriginID.Int64)]
 		}

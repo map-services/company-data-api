@@ -67,9 +67,9 @@ func NewCompanyDataImporter(db *sql.DB, maxRecords int) *companyDataImporter {
 }
 
 // getOrCreateRefID looks up or inserts a reference value and returns its ID.
-func (imp *companyDataImporter) getOrCreateRefID(tx *sql.Tx, cache map[string]int, table, column, value string) (int, error) {
+func (imp *companyDataImporter) getOrCreateRefID(tx *sql.Tx, cache map[string]int, table, column, value string) (any, error) {
 	if value == "" {
-		return 0, nil
+		return nil, nil
 	}
 	if id, ok := cache[value]; ok {
 		return id, nil
@@ -80,15 +80,15 @@ func (imp *companyDataImporter) getOrCreateRefID(tx *sql.Tx, cache map[string]in
 	if err == sql.ErrNoRows {
 		result, err := tx.Exec(fmt.Sprintf("INSERT INTO %s (%s) VALUES (?)", table, column), value)
 		if err != nil {
-			return 0, fmt.Errorf("failed to insert into %s: %w", table, err)
+			return nil, fmt.Errorf("failed to insert into %s: %w", table, err)
 		}
 		lastID, err := result.LastInsertId()
 		if err != nil {
-			return 0, fmt.Errorf("failed to get last insert ID from %s: %w", table, err)
+			return nil, fmt.Errorf("failed to get last insert ID from %s: %w", table, err)
 		}
 		id = int(lastID)
 	} else if err != nil {
-		return 0, fmt.Errorf("failed to query %s: %w", table, err)
+		return nil, fmt.Errorf("failed to query %s: %w", table, err)
 	}
 	cache[value] = id
 	return id, nil
@@ -356,7 +356,7 @@ func (importer *companyDataImporter) processCSV(f *zip.File) error {
 	return nil
 }
 
-func (importer *companyDataImporter) insertBatch(batch []models.CompanyData, lastLineNum int) error {
+func (importer *companyDataImporter) insertBatch(batch []models.CompanyData, lastLineNum int) (err error) {
 	if len(batch) == 0 {
 		return nil
 	}
