@@ -11,6 +11,11 @@ import (
 //go:embed sql/migration.sql
 var migrationSQL string
 
+//go:embed sql/company_data_postcode_index.sql
+var CompanyDataPostcodeIndexSQL string
+
+const DropCompanyDataPostcodeIndexSQL = "DROP INDEX IF EXISTS idx_company_data_reg_address_post_code"
+
 //go:embed sql/insert_code_point.sql
 var InsertCodePointSQL string
 
@@ -24,7 +29,10 @@ var InsertSICCodeSQL string
 var SearchSQL string
 
 func CreateDB(db *sql.DB) error {
-	_, err := db.Exec(migrationSQL)
+	if _, err := db.Exec(migrationSQL); err != nil {
+		return err
+	}
+	_, err := db.Exec(CompanyDataPostcodeIndexSQL)
 	return err
 }
 

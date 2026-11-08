@@ -296,6 +296,8 @@ func TestImportCompanyData(t *testing.T) {
 		assert.NoError(t, os.Remove(zipPath))
 	}()
 
+	mock.ExpectExec(internal.DropCompanyDataPostcodeIndexSQL).
+		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectBegin()
 	mock.ExpectPrepare(internal.InsertCompanyDataSQL)
 
@@ -333,6 +335,8 @@ func TestImportCompanyData(t *testing.T) {
 			sqlmock.AnyArg(), sqlmock.AnyArg(),
 		).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
+	mock.ExpectExec(internal.CompanyDataPostcodeIndexSQL).
+		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("ANALYZE company_data").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	err = companyData.Import(zipPath, http.Header{})
@@ -350,6 +354,7 @@ func TestImportCompanyDataMaxRecords(t *testing.T) {
 		assert.NoError(t, os.Remove(zipPath))
 	}()
 
+	mock.ExpectExec(internal.DropCompanyDataPostcodeIndexSQL).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectBegin()
 	mock.ExpectPrepare(internal.InsertCompanyDataSQL)
 	mock.ExpectQuery("SELECT id FROM company_categories WHERE code = ?").
@@ -375,6 +380,7 @@ func TestImportCompanyDataMaxRecords(t *testing.T) {
 	expectCompanyDataInsert(mock)
 	expectCompanyDataInsert(mock)
 	mock.ExpectCommit()
+	mock.ExpectExec(internal.CompanyDataPostcodeIndexSQL).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("ANALYZE company_data").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err = companyData.Import(zipPath, http.Header{})

@@ -227,6 +227,19 @@ func (importer *companyDataImporter) Import(zipPath string, _ http.Header) error
 		}
 	}()
 
+	indexDropped := false
+	defer func() {
+		if indexDropped {
+			if _, err := importer.db.Exec(internal.CompanyDataPostcodeIndexSQL); err != nil {
+				slog.Error("failed to restore company postcode index", "error", err)
+			}
+		}
+	}()
+	if _, err := importer.db.Exec(internal.DropCompanyDataPostcodeIndexSQL); err != nil {
+		return fmt.Errorf("failed to drop company postcode index: %w", err)
+	}
+	indexDropped = true
+
 	for _, f := range r.File {
 		if importer.maxRecords > 0 && importer.recordsImported >= importer.maxRecords {
 			break
@@ -237,6 +250,10 @@ func (importer *companyDataImporter) Import(zipPath string, _ http.Header) error
 	}
 
 	slog.Info("Import completed successfully!")
+	if _, err = importer.db.Exec(internal.CompanyDataPostcodeIndexSQL); err != nil {
+		return fmt.Errorf("failed to restore company postcode index: %w", err)
+	}
+	indexDropped = false
 	slog.Info("Analyzing \"company_data\" table")
 	if _, err = importer.db.Exec("ANALYZE company_data"); err != nil {
 		return fmt.Errorf("failed to analyze \"company_data\" table: %w", err)
