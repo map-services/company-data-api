@@ -8,12 +8,14 @@ import (
 	"net/http"
 
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/map-services/company-data-api/internal"
 	"github.com/map-services/company-data-api/internal/models"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -566,4 +568,40 @@ func TestInsertCompanyDataBatchRollbackOnError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to execute individual insert: mock insert error")
 	// Note: ExpectationsWereMet may fail due to go-sqlmock arg matching quirks
 	// The important assertion is that the error is properly returned and contains the expected message
+}
+
+func TestInsertCompanyDataDuplicateUsesLastRow(t *testing.T) {
+	db, err := internal.ConnectForImport(filepath.Join(t.TempDir(), "duplicate.db"))
+	assert.NoError(t, err)
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("failed to close test database: %v", err)
+		}
+	})
+
+	incorporationDate := time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
+	first := models.CompanyData{
+		CompanyName:             "First name",
+		CompanyNumber:           "00000001",
+		RegAddressAddressLine1:  "1 High Street",
+		RegAddressPostTown:      "London",
+		RegAddressPostCode:      "AB1 2CD",
+		CompanyCategory:         "private limited company",
+		CompanyStatus:           "active",
+		IncorporationDate:       &incorporationDate,
+		AccountsAccountRefDay:   1,
+		AccountsAccountRefMonth: 1,
+		SICCode1:                "01110",
+	}
+	last := first
+	last.CompanyName = "Last name"
+
+	importer := NewCompanyDataImporter(db, 0)
+	err = importer.insertBatch([]models.CompanyData{first, last}, 2)
+	assert.NoError(t, err)
+
+	var companyName string
+	err = db.QueryRow("SELECT company_name FROM company_data WHERE company_number = ?", first.CompanyNumber).Scan(&companyName)
+	assert.NoError(t, err)
+	assert.Equal(t, "Last name", companyName)
 }
