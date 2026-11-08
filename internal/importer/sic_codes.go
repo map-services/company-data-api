@@ -23,6 +23,12 @@ func NewSICCodesImporter(db *sql.DB) *sicCodesImporter {
 }
 
 func (imp *sicCodesImporter) Import(csvPath string, _ http.Header) error {
+	startedAt := logImportStart("sic_codes")
+	recordsImported := 0
+	defer func() {
+		logImportCompletion("sic_codes", startedAt, recordsImported)
+	}()
+
 	file, err := os.Open(csvPath)
 	if err != nil {
 		return fmt.Errorf("failed to open CSV file: %w", err)
@@ -56,6 +62,7 @@ func (imp *sicCodesImporter) Import(csvPath string, _ http.Header) error {
 			if err := imp.insertBatch(batch); err != nil {
 				return fmt.Errorf("failed to insert SIC codes batch at line %d: %w", result.LineNum, err)
 			}
+			recordsImported += len(batch)
 			batch = batch[:0]
 		}
 	}
@@ -64,6 +71,7 @@ func (imp *sicCodesImporter) Import(csvPath string, _ http.Header) error {
 		if err := imp.insertBatch(batch); err != nil {
 			return fmt.Errorf("failed to insert final SIC codes batch: %w", err)
 		}
+		recordsImported += len(batch)
 	}
 
 	slog.Info("SIC codes import completed successfully")

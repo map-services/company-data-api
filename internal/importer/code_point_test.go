@@ -141,6 +141,12 @@ func TestImportCodePoint(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 
 	assert.Contains(t, buf.String(), "Completed successfully")
+	assert.Contains(t, buf.String(), `"msg":"Import started"`)
+	assert.Contains(t, buf.String(), `"startTime":`)
+	assert.Contains(t, buf.String(), `"endTime":`)
+	assert.Contains(t, buf.String(), `"elapsed":`)
+	assert.Contains(t, buf.String(), `"recordsProcessed":1`)
+	assert.Contains(t, buf.String(), `"recordsPerSecond":`)
 }
 
 func TestImportCodePointMultipleRecords(t *testing.T) {

@@ -55,6 +55,12 @@ func NewCodePointImporter(db *sql.DB) *codePointImporter {
 }
 
 func (importer *codePointImporter) Import(zipPath string, _ http.Header) error {
+	startedAt := logImportStart("code_point")
+	totalRecordsImported := 0
+	defer func() {
+		logImportCompletion("code_point", startedAt, totalRecordsImported)
+	}()
+
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return fmt.Errorf("failed to open zip file: %w", err)
@@ -65,17 +71,16 @@ func (importer *codePointImporter) Import(zipPath string, _ http.Header) error {
 		}
 	}()
 
-	totalRecordsImported := 0
 	for _, f := range r.File {
 		if f.FileInfo().IsDir() || !strings.HasPrefix(f.Name, "Data/CSV/") {
 			continue
 		}
 		recordsInFile, err := importer.processCSV(f)
+		totalRecordsImported += recordsInFile
 		if err != nil {
 			return fmt.Errorf("failed to process CSV data: %w", err)
 		}
 		slog.Info("Processed file", "filename", f.Name, "records", recordsInFile)
-		totalRecordsImported += recordsInFile
 	}
 
 	slog.Info("Completed successfully", "totalRecords", totalRecordsImported)
@@ -99,29 +104,32 @@ func (importer *codePointImporter) processCSV(f *zip.File) (int, error) {
 
 	batch := make([]CodePoint, 0, importer.batchSize)
 	lineNum := 0
+	recordsProcessed := 0
 
 	for result := range internal.ParseCSV(r, false, fromCodePointCSV) {
 		lineNum = result.LineNum
 		if result.Error != nil {
-			return 0, fmt.Errorf("error parsing line %d: %w", lineNum, result.Error)
+			return recordsProcessed, fmt.Errorf("error parsing line %d: %w", lineNum, result.Error)
 		}
 
 		batch = append(batch, *result.Value)
 
 		if len(batch) >= importer.batchSize {
 			if err := importer.insertBatch(batch); err != nil {
-				return 0, fmt.Errorf("failed to insert batch: %w", err)
+				return recordsProcessed, fmt.Errorf("failed to insert batch: %w", err)
 			}
+			recordsProcessed += len(batch)
 			batch = batch[:0]
 		}
 	}
 
 	if len(batch) > 0 {
 		if err := importer.insertBatch(batch); err != nil {
-			return 0, fmt.Errorf("failed to insert batch: %w", err)
+			return recordsProcessed, fmt.Errorf("failed to insert batch: %w", err)
 		}
+		recordsProcessed += len(batch)
 	}
-	return lineNum, nil
+	return recordsProcessed, nil
 }
 
 func (importer *codePointImporter) insertBatch(batch []CodePoint) error {

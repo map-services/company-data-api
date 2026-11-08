@@ -207,6 +207,12 @@ func companyDataToTuple(companyData models.CompanyData) []any {
 }
 
 func (importer *companyDataImporter) Import(zipPath string, _ http.Header) error {
+	startedAt := logImportStart("company_data")
+	initialRecordsImported := importer.recordsImported
+	defer func() {
+		logImportCompletion("company_data", startedAt, importer.recordsImported-initialRecordsImported)
+	}()
+
 	if importer.maxRecords < 0 {
 		return fmt.Errorf("max records cannot be negative")
 	}
