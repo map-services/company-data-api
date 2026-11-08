@@ -13,6 +13,7 @@ func main() {
 	var debug bool
 	var companiesHouseZipFile string
 	var codepointZipFile string
+	var sicCodesCSVFile string
 
 	rootCmd := &cobra.Command{
 		Use:  "company-data",
@@ -47,9 +48,19 @@ func main() {
 	}
 	processCodepointZipCmd.Flags().StringVar(&codepointZipFile, "zip-file", "./data/codepo_gb.zip", "Path to Codepoint .zip file")
 
+	importSICCodesCmd := &cobra.Command{
+		Use:   "import-sic-codes [--csv-file <path>] [--db <path>]",
+		Short: "Import SIC codes from CSV",
+		Run: func(_ *cobra.Command, _ []string) {
+			cmd.ImportSICCodes(sicCodesCSVFile, dbPath)
+		},
+	}
+	importSICCodesCmd.Flags().StringVar(&sicCodesCSVFile, "csv-file", "https://assets.publishing.service.gov.uk/media/5a7f8639e5274a2e87db65e1/SIC07_CH_condensed_list_en.csv", "Path or URL to SIC07 CSV file")
+
 	rootCmd.AddCommand(apiServerCmd)
 	rootCmd.AddCommand(processCompaniesHouseZipCmd)
 	rootCmd.AddCommand(processCodepointZipCmd)
+	rootCmd.AddCommand(importSICCodesCmd)
 	rootCmd.PersistentFlags().StringVar(&dbPath, "db", "./data/companies_data.db", "Path to Companies data SQLite database")
 
 	if err = rootCmd.Execute(); err != nil {

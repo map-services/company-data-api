@@ -9,7 +9,7 @@ SELECT
     cd.mortgages_num_outstanding, cd.mortgages_num_part_satisfied, cd.mortgages_num_satisfied,
     cd.sic_code_1, cd.sic_code_2, cd.sic_code_3, cd.sic_code_4,
     cd.limited_partnerships_num_gen_partners, cd.limited_partnerships_num_lim_partners,
-    cd.uri, cd.conf_stmt_next_due_date, cd.conf_stmt_last_made_up_date,
+    cd.conf_stmt_next_due_date, cd.conf_stmt_last_made_up_date,
     cp.easting, cp.northing
 FROM code_point cp
 INNER JOIN company_data cd ON cp.post_code = cd.reg_address_post_code

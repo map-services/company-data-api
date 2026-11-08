@@ -35,6 +35,18 @@
                 "--zip-file",
                 "https://api.os.uk/downloads/v1/products/CodePointOpen/downloads?area=GB&format=CSV&redirect"
             ]
+        },
+        {
+            "name": "Import SIC codes",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "main.go",
+            "args": [
+                "import-sic-codes",
+                "--csv-file",
+                "https://assets.publishing.service.gov.uk/media/5a7f8639e5274a2e87db65e1/SIC07_CH_condensed_list_en.csv"
+            ]
         }
     ]
 }

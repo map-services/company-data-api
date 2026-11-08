@@ -104,13 +104,13 @@ flowchart TD
 ```
 
 -   **Data Import:**
-    -   `internal/company_data.go` and `internal/code_point.go` handle importing zipped CSV data into SQLite.
+    -   `internal/importer/company_data.go`, `internal/importer/code_point.go`, and `internal/importer/sic_codes.go` handle importing CSV data into SQLite.
 -   **Database:**
-    -   `internal/migration.sql` defines the schema for company and postcode data.
+    -   `internal/sql/migration.sql` defines the schema for company, postcode, and reference data (SIC codes, categories, statuses, countries).
 -   **API Server:**
     -   `main.go` sets up the Gin HTTP server, routes, and middleware.
-    -   `internal/search.go` implements search endpoints.
-    -   `repositories/search.go` performs SQL queries joining company and postcode tables.
+    -   `internal/routes/search.go` implements search endpoints.
+    -   `internal/repositories/search.go` performs SQL queries joining company and postcode tables, expanding reference data codes to full text.
 -   **Models:**
     -   `models/company_data.go` defines the data structures returned by the API.
 
@@ -134,9 +134,14 @@ The application uses [cobra](https://github.com/spf13/cobra) for its command-lin
     -   Options:
         -   `--zip-file <path>`: Path to Codepoint .zip file (default: `./data/codepo_gb.zip`)
 
+-   `import-sic-codes` — Imports SIC07 industry codes from the official UK government CSV.
+    -   Options:
+        -   `--csv-file <path>`: Path or URL to SIC07 CSV file (default: official UK government SIC07 CSV)
+
 Example usage:
 
 ```sh
+./company-data import-sic-codes
 ./company-data import-companies-house --zip-file https://download.companieshouse.gov.uk/BasicCompanyDataAsOneFile-2025-09-01.zip
 ./company-data import-code-point --zip-file https://api.os.uk/downloads/v1/products/CodePointOpen/downloads?area=GB&format=CSV&redirect
 ./company-data api-server --db ./data/companies_data.db --port 8080
@@ -192,6 +197,7 @@ docker run -p 8080:8080 -v $PWD/data:/app/data company-data-api http
 
 -   Basic Company Data (UK Gov, Companies House): https://download.companieshouse.gov.uk/en_output.html
 -   CodePoint Open (UK Gov, OS Data Hub): https://osdatahub.os.uk/downloads/open/CodePointOpen
+-   SIC07 Codes (UK Gov, GOV.UK): https://assets.publishing.service.gov.uk/media/5a7f8639e5274a2e87db65e1/SIC07_CH_condensed_list_en.csv
 
 ## TODO & Future Enhancements
 

@@ -25,19 +25,24 @@ type CompanyData struct {
 	AccountsAccountCategory           string     `json:"accounts_account_category"`
 	ReturnsNextDueDate                *time.Time `json:"returns_next_due_date,omitempty"`
 	ReturnsLastMadeUpDate             *time.Time `json:"returns_last_made_up_date,omitempty"`
-	MortgagesNumCharges               int        `json:"mortgages_num_charges"`
-	MortgagesNumOutstanding           int        `json:"mortgages_num_outstanding"`
-	MortgagesNumPartSatisfied         int        `json:"mortgages_num_part_satisfied"`
-	MortgagesNumSatisfied             int        `json:"mortgages_num_satisfied"`
+	MortgagesNumCharges               string     `json:"mortgages_num_charges,omitempty"`
+	MortgagesNumOutstanding           string     `json:"mortgages_num_outstanding,omitempty"`
+	MortgagesNumPartSatisfied         string     `json:"mortgages_num_part_satisfied,omitempty"`
+	MortgagesNumSatisfied             string     `json:"mortgages_num_satisfied,omitempty"`
 	SICCode1                          string     `json:"sic_code_1"`
 	SICCode2                          string     `json:"sic_code_2,omitempty"`
 	SICCode3                          string     `json:"sic_code_3,omitempty"`
 	SICCode4                          string     `json:"sic_code_4,omitempty"`
-	LimitedPartnershipsNumGenPartners int        `json:"limited_partnerships_num_gen_partners"`
-	LimitedPartnershipsNumLimPartners int        `json:"limited_partnerships_num_lim_partners"`
+	LimitedPartnershipsNumGenPartners string     `json:"limited_partnerships_num_gen_partners,omitempty"`
+	LimitedPartnershipsNumLimPartners string     `json:"limited_partnerships_num_lim_partners,omitempty"`
 	URI                               string     `json:"uri"`
 	ConfStmtNextDueDate               *time.Time `json:"conf_stmt_next_due_date,omitempty"`
 	ConfStmtLastMadeUpDate            *time.Time `json:"conf_stmt_last_made_up_date,omitempty"`
+}
+
+// URIFromCompanyNumber derives the Companies House URI from a company number.
+func URIFromCompanyNumber(companyNumber string) string {
+	return "http://business.data.gov.uk/id/company/" + companyNumber
 }
 
 type CompanyDataWithLocation struct {
